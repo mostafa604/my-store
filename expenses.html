@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>مصاريف الأوضة</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Arial,sans-serif;background:#f3f4f6;color:#111;padding-bottom:90px}
+header{background:#1d4ed8;color:#fff;padding:12px 14px;font-weight:700;font-size:18px;display:flex;justify-content:space-between;align-items:center}
+header button{background:#fff3;color:#fff;border:0;border-radius:8px;padding:6px 10px;font-size:13px}
+.cols{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:8px}
+.col{background:#fff;border-radius:10px;overflow:hidden;min-width:0}
+.col h2{margin:0;padding:8px 4px;text-align:center;font-size:15px;color:#fff}
+.tot{text-align:center;font-size:20px;font-weight:800;padding:8px 2px;border-bottom:1px solid #e5e7eb}
+.e{padding:6px;border-bottom:1px solid #f0f0f0;font-size:13px;word-break:break-word}
+.e b{display:block;color:#111}.e span{color:#6b7280;font-size:11px}
+.e button{float:left;border:0;background:none;color:#b91c1c;font-size:15px}
+.c0 h2{background:#2563eb}.c1 h2{background:#16a34a}.c2 h2{background:#ea580c}
+.grand{position:fixed;bottom:0;left:0;right:0;background:#111827;color:#fff;text-align:center;padding:14px;font-size:20px;font-weight:800}
+.form{background:#fff;margin:8px;padding:10px;border-radius:10px}
+.who{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px}
+.who button{padding:10px 2px;border:2px solid #d1d5db;background:#fff;border-radius:8px;font-size:15px}
+.who button.on{border-color:#1d4ed8;background:#dbeafe;font-weight:700}
+input{width:100%;padding:11px;border:1px solid #d1d5db;border-radius:8px;font-size:16px;margin-bottom:8px}
+.add{width:100%;padding:12px;background:#1d4ed8;color:#fff;border:0;border-radius:8px;font-size:17px;font-weight:700}
+#gate{position:fixed;inset:0;background:#f3f4f6;display:none;align-items:center;justify-content:center;z-index:5}
+#gate div{background:#fff;padding:20px;border-radius:12px;width:86%;max-width:340px}
+.small{font-size:12px;color:#6b7280;text-align:center}
+</style></head><body>
+<div id="gate"><div><h3 style="margin-top:0">مصاريف الأوضة</h3><label>كلمة السر</label><input type="password" id="pw"><button id="pwok" class="add">دخول</button><div class="small" id="pwerr" style="color:#b91c1c"></div></div></div>
+<header><span>🧾 مصاريف الأوضة</span><button id="out">خروج</button></header>
+<div class="form">
+ <div class="who" id="who"></div>
+ <input id="item" placeholder="اسم الحاجة (مثلاً: أرز، صابون)">
+ <input id="amt" type="number" inputmode="decimal" placeholder="السعر">
+ <button class="add" id="addb">إضافة</button>
+ <div class="small" id="err" style="color:#b91c1c"></div>
+</div>
+<div class="cols" id="cols"></div>
+<div class="grand" id="grand"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL="https://mppkmtotiibnemucdgtm.supabase.co";
+const SUPABASE_ANON_KEY="sb_publishable_U0CyICtifVV8Y7is1FahIg_jqk0HXVq";
+const TEAM_EMAIL="store@store.com";
+const NAMES=["الطيب","حمادة","محمد عبد الله"];
+const $=id=>document.getElementById(id);
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+let rows=[],who=0,chan=null;
+const fmt=n=>(Math.round(n*100)/100).toLocaleString('en-US');
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function buildWho(){$('who').innerHTML=NAMES.map((n,i)=>`<button class="${i==who?'on':''}" data-i="${i}">${n}</button>`).join('');
+ $('who').querySelectorAll('button').forEach(b=>b.onclick=()=>{who=+b.dataset.i;buildWho()})}
+function render(){
+ let g=0;
+ $('cols').innerHTML=NAMES.map((n,i)=>{
+  const mine=rows.filter(r=>r.person===n);const t=mine.reduce((s,r)=>s+Number(r.amount),0);g+=t;
+  return `<div class="col c${i}"><h2>${n}</h2><div class="tot">${fmt(t)}</div>`+
+   mine.map(r=>`<div class="e"><button data-id="${r.id}">✕</button><b>${fmt(r.amount)}</b>${r.item?esc(r.item)+'<br>':''}<span>${new Date(r.created_at).toLocaleDateString('ar-EG',{day:'numeric',month:'short'})}</span></div>`).join('')+`</div>`}).join('');
+ $('grand').textContent='الإجمالي: '+fmt(g);
+ $('cols').querySelectorAll('.e button').forEach(b=>b.onclick=async()=>{
+  if(!confirm('تمسح العملية دي؟'))return;
+  const {error}=await sb.from('expenses').delete().eq('id',b.dataset.id);
+  if(error)$('err').textContent='⚠️ '+error.message;load()});
+}
+async function load(){
+ const {data,error}=await sb.from('expenses').select('*').order('created_at',{ascending:false});
+ if(error){$('err').textContent='⚠️ '+error.message;return}
+ $('err').textContent='';rows=data||[];render()}
+$('addb').onclick=async()=>{
+ const a=parseFloat($('amt').value);
+ if(!$('item').value.trim()){$('err').textContent='اكتب اسم الحاجة';return}
+ if(!(a>0)){$('err').textContent='اكتب السعر';return}
+ $('addb').disabled=true;
+ const {error}=await sb.from('expenses').insert({person:NAMES[who],item:$('item').value.trim(),amount:a});
+ $('addb').disabled=false;
+ if(error){$('err').textContent='⚠️ '+error.message;return}
+ $('item').value='';$('amt').value='';$('err').textContent='';load()};
+function enter(){$('gate').style.display='none';buildWho();load();
+ if(chan)sb.removeChannel(chan);
+ chan=sb.channel('exp-live').on('postgres_changes',{event:'*',schema:'public',table:'expenses'},()=>load()).subscribe()}
+$('pwok').onclick=async()=>{$('pwerr').textContent='';
+ const {error}=await sb.auth.signInWithPassword({email:TEAM_EMAIL,password:$('pw').value});
+ if(error)$('pwerr').textContent='كلمة السر مش صحيحة، أو في مشكلة في الاتصال'};
+$('pw').onkeydown=e=>{if(e.key==='Enter')$('pwok').click()};
+$('out').onclick=()=>sb.auth.signOut();
+sb.auth.onAuthStateChange((ev,s)=>{if(s)enter();else{rows=[];render();$('gate').style.display='flex'}});
+buildWho();render();
+sb.auth.getSession().then(({data:{session}})=>{if(!session)$('gate').style.display='flex'});
+</script></body></html>
