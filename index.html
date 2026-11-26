@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>مستودع الكهرباء</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,Tahoma,sans-serif;background:#f3f4f6;color:#111}
+header{background:#0b5cad;color:#fff;padding:14px 16px;position:sticky;top:0;z-index:5}
+header h1{margin:0 0 8px;font-size:20px}
+input[type=search],input[type=text],input[type=number]{width:100%;padding:12px;border:1px solid #ccc;border-radius:10px;font-size:16px}
+main{padding:12px;max-width:640px;margin:auto;padding-bottom:90px}
+.card{background:#fff;border-radius:14px;padding:10px;margin-bottom:10px;display:flex;gap:10px;box-shadow:0 1px 3px #0002}
+.card img,.ph{width:84px;height:84px;object-fit:cover;border-radius:10px;background:#e5e7eb;flex:none;display:flex;align-items:center;justify-content:center;font-size:30px}
+.info{flex:1;min-width:0}.name{font-weight:700;font-size:17px;margin-bottom:6px;overflow-wrap:anywhere}
+.qty{font-size:15px;color:#444}.qty b{font-size:24px;color:#0b5cad}.qty b.low{color:#c0392b}
+.row{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+button{border:0;border-radius:10px;padding:10px 14px;font-size:16px;font-weight:600;color:#fff;background:#0b5cad}
+button.sell{background:#d97706}button.add{background:#16a34a}button.ghost{background:#e5e7eb;color:#222}button.del{background:#fee2e2;color:#b91c1c}
+.fab{position:fixed;bottom:16px;left:16px;right:16px;max-width:608px;margin:auto;padding:16px;font-size:18px;background:#16a34a;box-shadow:0 3px 10px #0004}
+dialog{border:0;border-radius:16px;width:92%;max-width:420px;padding:16px}dialog::backdrop{background:#0008}
+label{display:block;margin:10px 0 4px;font-weight:600}
+#prev{width:100%;max-height:200px;object-fit:contain;margin-top:8px;border-radius:10px}
+.empty{text-align:center;color:#666;margin-top:40px;line-height:1.8}
+.small{font-size:13px;color:#666;text-align:center;margin-top:16px}
+</style></head><body>
+<header><h1>📦 مستودع الكهرباء</h1><input type="search" id="q" placeholder="ابحث باسم الماتريال..."></header>
+<main><div id="list"></div><div class="small" id="foot"></div></main>
+<button class="fab" id="newBtn">+ ماتريال جديد</button>
+
+<dialog id="dlg"><form method="dialog" id="f" onsubmit="return false">
+<h3 id="dt">ماتريال جديد</h3>
+<label>الاسم</label><input type="text" id="n" autocomplete="off">
+<label>العدد</label><input type="number" id="c" inputmode="numeric" min="0" value="1">
+<label>الصورة</label><input type="file" id="p" accept="image/*"><img id="prev" hidden>
+<div class="row"><button type="button" id="save" class="add">حفظ</button><button type="button" id="cancel" class="ghost">إلغاء</button></div>
+</form></dialog>
+
+<dialog id="ddlg"><h3 id="dtt"></h3><div>متأكد إنك عايز تمسح الماتريال ده نهائي؟</div>
+<div class="row"><button type="button" id="dok" class="del" style="background:#b91c1c;color:#fff">أيوه، امسح</button><button type="button" id="dno" class="ghost">إلغاء</button></div></dialog>
+
+<dialog id="sdlg"><h3 id="st"></h3>
+<label>عدد المباع</label><input type="number" id="sq" inputmode="numeric" min="1" value="1">
+<div class="row"><button type="button" id="sok" class="sell">تأكيد البيع</button><button type="button" id="sno" class="ghost">إلغاء</button></div></dialog>
+
+<script>
+const $=id=>document.getElementById(id);
+let db,items=[],deleting=null,editing=null,selling=null,photo=null;
+function ls(){try{localStorage.setItem('items',JSON.stringify(items))}catch(e){alert('الذاكرة اتملت، صغّر الصور أو امسح أصناف قديمة')}}
+function init(){
+ try{const o=indexedDB.open('warehouse',1);
+ o.onupgradeneeded=()=>o.result.createObjectStore('items',{keyPath:'id'});
+ o.onsuccess=()=>{db=o.result;load()};
+ o.onerror=fallback;o.onblocked=fallback}catch(e){fallback()}}
+function fallback(){db=null;try{items=JSON.parse(localStorage.getItem('items')||'[]')}catch(e){}render()}
+function load(){db.transaction('items').objectStore('items').getAll().onsuccess=e=>{items=e.target.result;render()}}
+function put(it){if(!db){ls();return Promise.resolve()}return new Promise(r=>{const t=db.transaction('items','readwrite');t.objectStore('items').put(it);t.oncomplete=r;t.onerror=r})}
+function rm(id){if(!db){items=items.filter(x=>x.id!==id);ls();return Promise.resolve()}return new Promise(r=>{const t=db.transaction('items','readwrite');t.objectStore('items').delete(id);t.oncomplete=r})}
+init();
+function esc(s){return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function render(){
+ const q=$('q').value.trim().toLowerCase();
+ const l=items.filter(i=>i.name.toLowerCase().includes(q)).sort((a,b)=>a.name.localeCompare(b.name,'ar'));
+ $('list').innerHTML=l.length?l.map(i=>`<div class="card">${i.photo?`<img src="${i.photo}">`:'<div class="ph">📦</div>'}
+ <div class="info"><div class="name">${esc(i.name)}</div><div class="qty">المتاح: <b class="${i.qty<=3?'low':''}">${i.qty}</b></div>
+ <div class="row"><button class="sell" data-a="sell" data-id="${i.id}">بيع</button><button class="add" data-a="plus" data-id="${i.id}">+ إضافة</button><button class="ghost" data-a="edit" data-id="${i.id}">تعديل</button><button class="del" data-a="del" data-id="${i.id}">🗑 مسح</button></div></div></div>`).join(''):
+ `<div class="empty">${items.length?'مفيش نتيجة':'لسه مفيش ماتريال.<br>دوس "+ ماتريال جديد" وابدأ.'}</div>`;
+ $('foot').textContent=items.length?`${items.length} صنف · الأحمر يعني باقي 3 أو أقل`:'';
+}
+$('q').oninput=render;
+$('list').onclick=async e=>{const b=e.target.closest('button');if(!b)return;const it=items.find(x=>x.id===b.dataset.id);
+ if(b.dataset.a==='sell'){selling=it;$('st').textContent='بيع: '+it.name+' (المتاح '+it.qty+')';$('sq').value=1;$('sdlg').showModal()}
+ if(b.dataset.a==='del'){deleting=it;$('dtt').textContent='مسح: '+it.name;$('ddlg').showModal()}
+ if(b.dataset.a==='plus'){it.qty++;await put(it);render()}
+ if(b.dataset.a==='edit'){editing=it;photo=it.photo;$('dt').textContent='تعديل';$('n').value=it.name;$('c').value=it.qty;$('prev').src=it.photo||'';$('prev').hidden=!it.photo;$('p').value='';$('dlg').showModal()}};
+$('newBtn').onclick=()=>{editing=null;photo=null;$('dt').textContent='ماتريال جديد';$('n').value='';$('c').value=1;$('prev').hidden=true;$('p').value='';$('dlg').showModal()};
+$('dno').onclick=()=>$('ddlg').close();
+$('dok').onclick=async()=>{if(deleting){items=items.filter(x=>x.id!==deleting.id);await rm(deleting.id);deleting=null}$('ddlg').close();render()};
+$('cancel').onclick=()=>$('dlg').close();$('sno').onclick=()=>$('sdlg').close();
+$('p').onchange=()=>{const f=$('p').files[0];if(!f)return;const img=new Image();img.onload=()=>{const s=Math.min(1,480/Math.max(img.width,img.height));
+ const c=document.createElement('canvas');c.width=img.width*s;c.height=img.height*s;c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+ photo=c.toDataURL('image/jpeg',.7);$('prev').src=photo;$('prev').hidden=false};img.src=URL.createObjectURL(f)};
+$('save').onclick=async()=>{const name=$('n').value.trim();if(!name){$('n').focus();return}
+ const qty=Math.max(0,parseInt($('c').value)||0);
+ const it=editing||{id:Date.now()+''+Math.random().toString(36).slice(2,6)};
+ Object.assign(it,{name,qty,photo});if(!editing)items.push(it);await put(it);$('dlg').close();render()};
+$('sok').onclick=async()=>{const n=parseInt($('sq').value)||0;if(n<1)return;
+ if(n>selling.qty){alert('العدد المتاح '+selling.qty+' بس');return}
+ selling.qty-=n;await put(selling);$('sdlg').close();render()};
+</script></body></html>
