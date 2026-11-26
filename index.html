@@ -6,7 +6,7 @@
 *{box-sizing:border-box}body{margin:0;font-family:system-ui,Tahoma,sans-serif;background:#f3f4f6;color:#111}
 header{background:#0b5cad;color:#fff;padding:14px 16px;position:sticky;top:0;z-index:5}
 header h1{margin:0 0 8px;font-size:20px}
-input[type=search],input[type=text],input[type=number]{width:100%;padding:12px;border:1px solid #ccc;border-radius:10px;font-size:16px}
+input[type=search],input[type=text],input[type=number],input[type=password]{width:100%;padding:12px;border:1px solid #ccc;border-radius:10px;font-size:16px}
 main{padding:12px;max-width:640px;margin:auto;padding-bottom:90px}
 .card{background:#fff;border-radius:14px;padding:10px;margin-bottom:10px;display:flex;gap:10px;box-shadow:0 1px 3px #0002}
 .card img,.ph{width:84px;height:84px;object-fit:cover;border-radius:10px;background:#e5e7eb;flex:none;display:flex;align-items:center;justify-content:center;font-size:30px}
@@ -20,11 +20,23 @@ dialog{border:0;border-radius:16px;width:92%;max-width:420px;padding:16px}dialog
 label{display:block;margin:10px 0 4px;font-weight:600}
 #prev{width:100%;max-height:200px;object-fit:contain;margin-top:8px;border-radius:10px}
 .empty{text-align:center;color:#666;margin-top:40px;line-height:1.8}
-.small{font-size:13px;color:#666;text-align:center;margin-top:16px}
+.small{font-size:13px;color:#666;text-align:center;margin-top:6px}
+#gate{position:fixed;inset:0;background:#f3f4f6;display:none;align-items:center;justify-content:center;padding:16px;z-index:50}
+#gatebox{background:#fff;border-radius:16px;padding:20px;width:100%;max-width:360px;box-shadow:0 2px 10px #0002}
+#out{position:absolute;top:14px;left:14px;padding:6px 10px;font-size:13px}
 </style></head><body>
-<header><h1>📦 مستودع الكهرباء</h1><input type="search" id="q" placeholder="ابحث باسم الماتريال..."></header>
-<main><div id="list"></div><div class="small" id="foot"></div></main>
+<header><h1>📦 مستودع الكهرباء</h1><input type="search" id="q" placeholder="ابحث باسم الماتريال...">
+<button id="out" class="ghost">خروج</button></header>
+<main><div class="small" id="live"></div><div id="list"></div><div class="small" id="foot"></div></main>
 <button class="fab" id="newBtn">+ ماتريال جديد</button>
+
+<div id="gate"><div id="gatebox">
+<h2 style="margin:0 0 4px">📦 مستودع الكهرباء</h2>
+<div class="small" style="text-align:right;margin:0 0 8px">المخزن ده مشترك، اكتب كلمة السر بتاعة الشغل</div>
+<label>كلمة السر</label><input type="password" id="pw">
+<div class="row" style="margin-top:12px"><button id="pwok" class="add" style="flex:1">دخول</button></div>
+<div class="small" id="pwerr" style="color:#b91c1c"></div>
+</div></div>
 
 <dialog id="dlg"><form method="dialog" id="f" onsubmit="return false">
 <h3 id="dt">ماتريال جديد</h3>
@@ -41,21 +53,30 @@ label{display:block;margin:10px 0 4px;font-weight:600}
 <label>عدد المباع</label><input type="number" id="sq" inputmode="numeric" min="1" value="1">
 <div class="row"><button type="button" id="sok" class="sell">تأكيد البيع</button><button type="button" id="sno" class="ghost">إلغاء</button></div></dialog>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+// ══════════════ الإعدادات: غيّر الـ 3 سطور دول بس (شوف ملف الشرح) ══════════════
+const SUPABASE_URL = "https://mppkmtotiibnemucdgtm.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_U0CyICtifVV8Y7is1FahIg_jqk0HXVq";
+const TEAM_EMAIL = "store@store.com";
+// ══════════════════════════════════════════════════════════════════════════════
 const $=id=>document.getElementById(id);
-let db,items=[],deleting=null,editing=null,selling=null,photo=null;
-function ls(){try{localStorage.setItem('items',JSON.stringify(items))}catch(e){alert('الذاكرة اتملت، صغّر الصور أو امسح أصناف قديمة')}}
-function init(){
- try{const o=indexedDB.open('warehouse',1);
- o.onupgradeneeded=()=>o.result.createObjectStore('items',{keyPath:'id'});
- o.onsuccess=()=>{db=o.result;load()};
- o.onerror=fallback;o.onblocked=fallback}catch(e){fallback()}}
-function fallback(){db=null;try{items=JSON.parse(localStorage.getItem('items')||'[]')}catch(e){}render()}
-function load(){db.transaction('items').objectStore('items').getAll().onsuccess=e=>{items=e.target.result;render()}}
-function put(it){if(!db){ls();return Promise.resolve()}return new Promise(r=>{const t=db.transaction('items','readwrite');t.objectStore('items').put(it);t.oncomplete=r;t.onerror=r})}
-function rm(id){if(!db){items=items.filter(x=>x.id!==id);ls();return Promise.resolve()}return new Promise(r=>{const t=db.transaction('items','readwrite');t.objectStore('items').delete(id);t.oncomplete=r})}
-init();
+let items=[],deleting=null,editing=null,selling=null,photo=null,entered=false,subbed=false;
+const configured=!SUPABASE_URL.includes("PASTE_")&&!SUPABASE_ANON_KEY.includes("PASTE_");
+const sb=configured?supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY):null;
 function esc(s){return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+async function load(){
+ const {data,error}=await sb.from('items').select('*');
+ if(error){$('foot').textContent='مشكلة في الاتصال بالسيرفر، حدّث الصفحة وجرب تاني';return}
+ items=data||[];render();
+}
+async function put(it){const {error}=await sb.from('items').upsert(it);if(error){alert('مشكلة في الحفظ، جرب تاني');await load();return false}return true}
+async function rm(id){const {error}=await sb.from('items').delete().eq('id',id);if(error){alert('مشكلة في المسح، جرب تاني');await load();return false}return true}
+async function bump(it,delta){
+ const {data,error}=await sb.rpc('bump_qty',{item_id:it.id,delta:delta});
+ if(error||data===null){alert('مشكلة في الاتصال، جرب تاني');await load();return null}
+ it.qty=data;render();return data;
+}
 function render(){
  const q=$('q').value.trim().toLowerCase();
  const l=items.filter(i=>i.name.toLowerCase().includes(q)).sort((a,b)=>a.name.localeCompare(b.name,'ar'));
@@ -65,15 +86,30 @@ function render(){
  `<div class="empty">${items.length?'مفيش نتيجة':'لسه مفيش ماتريال.<br>دوس "+ ماتريال جديد" وابدأ.'}</div>`;
  $('foot').textContent=items.length?`${items.length} صنف · الأحمر يعني باقي 3 أو أقل`:'';
 }
+function enter(){
+ $('gate').style.display='none';
+ if(entered)return;entered=true;
+ load();
+ if(!subbed){subbed=true;
+  sb.channel('items-live').on('postgres_changes',{event:'*',schema:'public',table:'items'},()=>load())
+   .subscribe(s=>{$('live').textContent=s==='SUBSCRIBED'?'🟢 متصل بالمخزن المشترك، أي تعديل يظهر عند الكل':'⏳ جاري الاتصال بالمخزن المشترك...'});
+ }
+}
+function showGate(){entered=false;items=[];render();$('live').textContent='';$('pw').value='';$('pwerr').textContent='';$('gate').style.display='flex'}
+$('pwok').onclick=async()=>{$('pwerr').textContent='';
+ const {error}=await sb.auth.signInWithPassword({email:TEAM_EMAIL,password:$('pw').value});
+ if(error)$('pwerr').textContent='كلمة السر مش صحيحة، أو في مشكلة في الاتصال'};
+$('pw').onkeydown=e=>{if(e.key==='Enter')$('pwok').click()};
+$('out').onclick=async()=>{await sb.auth.signOut()};
 $('q').oninput=render;
-$('list').onclick=async e=>{const b=e.target.closest('button');if(!b)return;const it=items.find(x=>x.id===b.dataset.id);
+$('list').onclick=async e=>{const b=e.target.closest('button');if(!b)return;const it=items.find(x=>x.id===b.dataset.id);if(!it)return;
  if(b.dataset.a==='sell'){selling=it;$('st').textContent='بيع: '+it.name+' (المتاح '+it.qty+')';$('sq').value=1;$('sdlg').showModal()}
  if(b.dataset.a==='del'){deleting=it;$('dtt').textContent='مسح: '+it.name;$('ddlg').showModal()}
- if(b.dataset.a==='plus'){it.qty++;await put(it);render()}
+ if(b.dataset.a==='plus'){await bump(it,1)}
  if(b.dataset.a==='edit'){editing=it;photo=it.photo;$('dt').textContent='تعديل';$('n').value=it.name;$('c').value=it.qty;$('prev').src=it.photo||'';$('prev').hidden=!it.photo;$('p').value='';$('dlg').showModal()}};
 $('newBtn').onclick=()=>{editing=null;photo=null;$('dt').textContent='ماتريال جديد';$('n').value='';$('c').value=1;$('prev').hidden=true;$('p').value='';$('dlg').showModal()};
 $('dno').onclick=()=>$('ddlg').close();
-$('dok').onclick=async()=>{if(deleting){items=items.filter(x=>x.id!==deleting.id);await rm(deleting.id);deleting=null}$('ddlg').close();render()};
+$('dok').onclick=async()=>{if(deleting){items=items.filter(x=>x.id!==deleting.id);const ok=await rm(deleting.id);deleting=null;if(ok){$('ddlg').close();render()}else await load()}else $('ddlg').close()};
 $('cancel').onclick=()=>$('dlg').close();$('sno').onclick=()=>$('sdlg').close();
 $('p').onchange=()=>{const f=$('p').files[0];if(!f)return;const img=new Image();img.onload=()=>{const s=Math.min(1,480/Math.max(img.width,img.height));
  const c=document.createElement('canvas');c.width=img.width*s;c.height=img.height*s;c.getContext('2d').drawImage(img,0,0,c.width,c.height);
@@ -81,8 +117,16 @@ $('p').onchange=()=>{const f=$('p').files[0];if(!f)return;const img=new Image();
 $('save').onclick=async()=>{const name=$('n').value.trim();if(!name){$('n').focus();return}
  const qty=Math.max(0,parseInt($('c').value)||0);
  const it=editing||{id:Date.now()+''+Math.random().toString(36).slice(2,6)};
- Object.assign(it,{name,qty,photo});if(!editing)items.push(it);await put(it);$('dlg').close();render()};
+ Object.assign(it,{name,qty,photo});const ok=await put(it);if(!ok)return;
+ if(!editing)items.push(it);$('dlg').close();render()};
 $('sok').onclick=async()=>{const n=parseInt($('sq').value)||0;if(n<1)return;
  if(n>selling.qty){alert('العدد المتاح '+selling.qty+' بس');return}
- selling.qty-=n;await put(selling);$('sdlg').close();render()};
+ const nv=await bump(selling,-n);if(nv!==null)$('sdlg').close()};
+if(!sb){
+ $('live').textContent='';
+ $('list').innerHTML='<div class="empty">لازم تحط إعدادات Supabase جوه الكود الأول.<br>افتح ملف الشرح ومشي مع الخطوات.</div>';
+}else{
+ sb.auth.getSession().then(({data:{session}})=>{if(session)enter();else showGate()});
+ sb.auth.onAuthStateChange((e,s)=>{if(s)enter();else showGate()});
+}
 </script></body></html>
