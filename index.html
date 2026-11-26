@@ -24,6 +24,10 @@ label{display:block;margin:10px 0 4px;font-weight:600}
 #gate{position:fixed;inset:0;background:#f3f4f6;display:none;align-items:center;justify-content:center;padding:16px;z-index:50}
 #gatebox{background:#fff;border-radius:16px;padding:20px;width:100%;max-width:360px;box-shadow:0 2px 10px #0002}
 #out{position:absolute;top:14px;left:14px;padding:6px 10px;font-size:13px}
+body::before{content:'';position:fixed;inset:0;z-index:-1;background:linear-gradient(rgba(0,0,0,.55),rgba(0,0,0,.65)),url(IMG-20261126-WA0041.jpg) center top/cover no-repeat}
+body{background:#111 !important}
+#gate{background:transparent !important}
+main>.small{color:#f3f4f6 !important;text-shadow:0 1px 3px #000}#list>.small,#list>div:not(.card){color:#f3f4f6 !important;text-shadow:0 1px 3px #000}
 </style></head><body>
 <header><h1>📦 مستودع الكهرباء</h1><input type="search" id="q" placeholder="ابحث باسم الماتريال...">
 <button id="out" class="ghost">خروج</button></header>
