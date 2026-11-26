@@ -37,7 +37,7 @@ main>.small{color:#f3f4f6 !important;text-shadow:0 1px 3px #000}#list>.small,#li
 <div id="gate"><div id="gatebox">
 <h2 style="margin:0 0 4px">📦 مستودع الكهرباء</h2>
 <div class="small" style="text-align:right;margin:0 0 8px">المخزن ده مشترك، اكتب كلمة السر بتاعة الشغل</div>
-<label>كلمة السر</label><input type="password" id="pw">
+<label>اسم المستخدم</label><input id="un" autocapitalize="none" autocomplete="username" style="direction:ltr"><label>كلمة السر</label><input type="password" id="pw">
 <div class="row" style="margin-top:12px"><button id="pwok" class="add" style="flex:1">دخول</button></div>
 <div class="small" id="pwerr" style="color:#b91c1c"></div>
 </div></div>
@@ -62,12 +62,14 @@ main>.small{color:#f3f4f6 !important;text-shadow:0 1px 3px #000}#list>.small,#li
 // ══════════════ الإعدادات: غيّر الـ 3 سطور دول بس (شوف ملف الشرح) ══════════════
 const SUPABASE_URL = "https://mppkmtotiibnemucdgtm.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_U0CyICtifVV8Y7is1FahIg_jqk0HXVq";
+const DEFAULT_USER="store";
+const EM=()=>{let u=$('un').value.trim().toLowerCase();localStorage.setItem("lastuser_store",u);return u.includes("@")?u:u+"@store.com"};
 const TEAM_EMAIL = "store@store.com";
 // ══════════════════════════════════════════════════════════════════════════════
 const $=id=>document.getElementById(id);
 let items=[],deleting=null,editing=null,selling=null,photo=null,entered=false,subbed=false;
 const configured=!SUPABASE_URL.includes("PASTE_")&&!SUPABASE_ANON_KEY.includes("PASTE_");
-const sb=configured?supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY):null;
+const sb=configured?supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{auth:{storageKey:"sb-store"}}):null;
 function esc(s){return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 async function load(){
  const {data,error}=await sb.from('items').select('*');
@@ -101,7 +103,7 @@ function enter(){
 }
 function showGate(){entered=false;items=[];render();$('live').textContent='';$('pw').value='';$('pwerr').textContent='';$('gate').style.display='flex'}
 $('pwok').onclick=async()=>{$('pwerr').textContent='';
- const {error}=await sb.auth.signInWithPassword({email:TEAM_EMAIL,password:$('pw').value});
+ const {error}=await sb.auth.signInWithPassword({email:EM(),password:$('pw').value});
  if(error)$('pwerr').textContent='كلمة السر مش صحيحة، أو في مشكلة في الاتصال'};
 $('pw').onkeydown=e=>{if(e.key==='Enter')$('pwok').click()};
 $('out').onclick=async()=>{await sb.auth.signOut()};
@@ -130,7 +132,8 @@ if(!sb){
  $('live').textContent='';
  $('list').innerHTML='<div class="empty">لازم تحط إعدادات Supabase جوه الكود الأول.<br>افتح ملف الشرح ومشي مع الخطوات.</div>';
 }else{
- sb.auth.getSession().then(({data:{session}})=>{if(session)enter();else showGate()});
+ $('un').value=localStorage.getItem('lastuser_store')||DEFAULT_USER;
+sb.auth.getSession().then(({data:{session}})=>{if(session)enter();else showGate()});
  sb.auth.onAuthStateChange((e,s)=>{if(s)enter();else showGate()});
 }
 </script></body></html>
