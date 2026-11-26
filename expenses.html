@@ -25,7 +25,7 @@ input{width:100%;padding:11px;border:1px solid #d1d5db;border-radius:8px;font-si
 #gate div{background:#fff;padding:20px;border-radius:12px;width:86%;max-width:340px}
 .small{font-size:12px;color:#6b7280;text-align:center}
 </style></head><body>
-<div id="gate"><div><h3 style="margin-top:0">مصاريف الأوضة</h3><label>كلمة السر</label><input type="password" id="pw"><button id="pwok" class="add">دخول</button><div class="small" id="pwerr" style="color:#b91c1c"></div></div></div>
+<div id="gate"><div><h3 style="margin-top:0">مصاريف الأوضة</h3><label>اسم المستخدم</label><input id="un" autocapitalize="none" autocomplete="username" style="direction:ltr"><label>كلمة السر</label><input type="password" id="pw"><button id="pwok" class="add">دخول</button><div class="small" id="pwerr" style="color:#b91c1c"></div></div></div>
 <header><span>🧾 مصاريف الأوضة</span><button id="out">خروج</button></header>
 <div class="form">
  <div class="who" id="who"></div>
@@ -40,10 +40,12 @@ input{width:100%;padding:11px;border:1px solid #d1d5db;border-radius:8px;font-si
 <script>
 const SUPABASE_URL="https://mppkmtotiibnemucdgtm.supabase.co";
 const SUPABASE_ANON_KEY="sb_publishable_U0CyICtifVV8Y7is1FahIg_jqk0HXVq";
+const DEFAULT_USER="";
+const EM=()=>{let u=$('un').value.trim().toLowerCase();localStorage.setItem("lastuser_exp",u);return u.includes("@")?u:u+"@store.com"};
 const TEAM_EMAIL="store@store.com";
 const NAMES=["الطيب","حمادة","محمد عبد الله"];
 const $=id=>document.getElementById(id);
-const sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{auth:{storageKey:"sb-exp"}});
 let rows=[],who=0,chan=null;
 const fmt=n=>(Math.round(n*100)/100).toLocaleString('en-US');
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
@@ -78,11 +80,12 @@ function enter(){$('gate').style.display='none';buildWho();load();
  if(chan)sb.removeChannel(chan);
  chan=sb.channel('exp-live').on('postgres_changes',{event:'*',schema:'public',table:'expenses'},()=>load()).subscribe()}
 $('pwok').onclick=async()=>{$('pwerr').textContent='';
- const {error}=await sb.auth.signInWithPassword({email:TEAM_EMAIL,password:$('pw').value});
+ const {error}=await sb.auth.signInWithPassword({email:EM(),password:$('pw').value});
  if(error)$('pwerr').textContent='كلمة السر مش صحيحة، أو في مشكلة في الاتصال'};
 $('pw').onkeydown=e=>{if(e.key==='Enter')$('pwok').click()};
 $('out').onclick=()=>sb.auth.signOut();
 sb.auth.onAuthStateChange((ev,s)=>{if(s)enter();else{rows=[];render();$('gate').style.display='flex'}});
 buildWho();render();
+$('un').value=localStorage.getItem('lastuser_exp')||DEFAULT_USER;
 sb.auth.getSession().then(({data:{session}})=>{if(!session)$('gate').style.display='flex'});
 </script></body></html>
